@@ -4,6 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving
 -/
 
+/-!
+This module provides a type that represents Redis frames as well as tools to parse them.
+-/
+
 namespace MiniRedis
 
 -- TODO: This should be upstreamed and use memcmp
@@ -20,6 +24,11 @@ instance : BEq ByteArray where
 instance : Repr ByteArray where
   reprPrec arr n := reprPrec arr.data n
 
+/--
+Represents the different types of frames available in the supported
+[`RESP2`](https://redis.io/docs/latest/develop/reference/protocol-spec/#resp-protocol-description)
+fragment.
+-/
 inductive Frame where
   | simple (msg : String)
   | error (msg : String)
@@ -31,8 +40,17 @@ inductive Frame where
 
 namespace Frame
 
+/--
+Errors that might happen while parsing a frame
+-/
 inductive Error where
+  /--
+  We do not yet have enough data to consume a frame from the input buffer.
+  -/
   | incomplete
+  /--
+  An actual error described by a `String`.
+  -/
   | other (err : String)
   deriving Inhabited, BEq, Repr
 
@@ -109,7 +127,11 @@ private def getBytes (count : Nat) : ParseM ByteArray := do
 
 end ParseM
 
-private partial def check (buf : ByteArray.Iterator) : Except Error Unit :=
+/--
+Check whether `buf` currently contains enough data to parse at least one `Frame` from it.
+If not enough data is available will return `.error .incomplete`.
+-/
+partial def check (buf : ByteArray.Iterator) : Except Error Unit :=
   ParseM.run' go buf
 where
   go : ParseM Unit := do
@@ -141,7 +163,11 @@ where
     else
       throw <| .other s!"protocol error; invalid frame type byte `{head}`"
 
-private partial def parseChecked (buf : ByteArray.Iterator) :
+/--
+Parse one `Frame` from `buf`, assuming that `check` has already been called on it to ensure we have
+data available.
+-/
+partial def parseChecked (buf : ByteArray.Iterator) :
     Except Error (Frame × ByteArray.Iterator) :=
   ParseM.run go buf
 where
@@ -180,6 +206,9 @@ where
     else
       unreachable!
 
+/--
+Run `check`, on success `parseChecked` on `buf`.
+-/
 def parse (buf : ByteArray.Iterator) : Except Error (Frame × ByteArray.Iterator) := do
   discard <| check buf
   parseChecked buf

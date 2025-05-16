@@ -5,3 +5,4 @@ Authors: Henrik Böving
 -/
 
 import MiniRedis.Util.Frame
+import MiniRedis.Util.Connection
