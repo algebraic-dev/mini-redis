@@ -1,0 +1,18 @@
+name = "mini-redis"
+version = "0.1.0"
+defaultTargets = ["mini-redis"]
+testDriver = "Test"
+
+[[lean_lib]]
+name = "MiniRedis"
+
+[[lean_lib]]
+name = "Test"
+
+[[lean_exe]]
+name = "mini-redis-client"
+root = "Client"
+
+[[lean_exe]]
+name = "mini-redis"
+root = "Server"
