@@ -5,7 +5,8 @@ Authors: Henrik Böving
 -/
 import MiniRedis.Util.Frame
 import MiniRedis.Util.Cmd.Parse
-import Std.Time.Duration
+import MiniRedis.Util.Connection
+import MiniRedis.Db
 
 namespace MiniRedis
 
@@ -34,6 +35,10 @@ def ofFrame : CmdParseM Set := do
     | _ => throw <| .other "Currently SET only supports the expiration option"
   else
     return Set.mk key value none
+
+def handle (set : Set) (db : Database) : ConnectionM Unit := do
+  db.set set.key set.value set.expire
+  ConnectionM.writeFrame <| .simple "OK"
 
 def toFrame (set : Set) : Frame := Id.run do
   let mut frame := Frame.array #[]

@@ -5,6 +5,7 @@ Authors: Henrik Böving
 -/
 import MiniRedis.Util.Frame
 import MiniRedis.Util.Cmd.Parse
+import MiniRedis.Util.Connection
 
 namespace MiniRedis
 
@@ -19,6 +20,14 @@ def ofFrame : CmdParseM Ping := do
     return Ping.mk bytes
   else
     return Ping.mk none
+
+def handle (p : Ping) : ConnectionM Unit := do
+  let response :=
+    match p.msg with
+    | none => Frame.simple "PONG"
+    | some msg => Frame.bulk msg
+
+    ConnectionM.writeFrame response
 
 def toFrame (ping : Ping) : Frame := Id.run do
   let mut frame := Frame.array #[]

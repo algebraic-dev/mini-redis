@@ -20,6 +20,6 @@ def pingIt : ClientM Unit := do
   IO.println s!"Get on existing value got: {response}"
 
 def main : IO Unit := do
-  IO.println "Starting ping"
+  IO.println "Starting test"
   let addr := Std.Net.SocketAddressV4.mk (.ofParts 127 0 0 1) 8080
   ClientM.run pingIt addr |>.wait
