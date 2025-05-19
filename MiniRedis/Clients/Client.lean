@@ -33,7 +33,34 @@ def ping (msg : Option ByteArray) : ClientM ByteArray := do
   match ← readResponse with
   | .simple value => return value.toUTF8
   | .bulk value => return value
-  | _ => throw <| .userError s!"Invalid ping response: {repr frame}"
+  | frame => throw <| .userError s!"Invalid ping response: {repr frame}"
+
+def get (key : String) : ClientM (Option ByteArray) := do
+  let frame := Get.mk key |>.toFrame
+  ConnectionM.writeFrame frame
+  match ← readResponse with
+  | .simple value => return some value.toUTF8
+  | .bulk value => return some value
+  | .null => return none
+  | frame => throw <| .userError s!"Invalid get response: {repr frame}"
+
+private def setCmd (set : Set) : ClientM Unit := do
+  let frame := set.toFrame
+  ConnectionM.writeFrame frame
+
+  match ← readResponse with
+  | .simple msg =>
+    if msg == "OK" then
+      return ()
+    else
+      throw <| .userError s!"Invalid set response: {msg}"
+  | frame => throw <| .userError s!"Invalid set response: {repr frame}"
+
+def set (key : String) (value : ByteArray) : ClientM Unit :=
+  setCmd <| Set.mk key value none
+
+def setExpires (key : String) (value : ByteArray) (expiration : Std.Time.Duration) : ClientM Unit :=
+  setCmd <| Set.mk key value (some expiration)
 
 end ClientM
 

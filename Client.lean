@@ -7,16 +7,19 @@ import MiniRedis.Clients.Client
 
 open MiniRedis
 
-def pingIt : ClientM (Array String) := do
-  let response1 := String.fromUTF8! (← ClientM.ping none)
-  let response2 := String.fromUTF8! (← ClientM.ping none)
+def pingIt : ClientM Unit := do
+  let response := String.fromUTF8! (← ClientM.ping none)
+  IO.println s!"Ping got: {response}"
   let buf := String.toUTF8 <| String.mk <| List.replicate 5000 'a'
-  let response3 := String.fromUTF8! (← ClientM.ping buf)
-  let response4 := String.fromUTF8! (← ClientM.ping none)
-  return #[response1, response2, response3, response4]
+  let response := String.fromUTF8! (← ClientM.ping buf)
+  IO.println s!"Ping with scream got: {response}"
+  let response ← ClientM.get "hello"
+  IO.println s!"Get on non existent value got: {response}"
+  ClientM.set "hello" "world".toUTF8
+  let response ← ClientM.get "hello"
+  IO.println s!"Get on existing value got: {response}"
 
 def main : IO Unit := do
   IO.println "Starting ping"
   let addr := Std.Net.SocketAddressV4.mk (.ofParts 127 0 0 1) 8080
-  let responses ← ClientM.run pingIt addr |>.wait
-  IO.println s!"Responses: {responses}"
+  ClientM.run pingIt addr |>.wait
