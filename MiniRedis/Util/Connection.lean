@@ -25,9 +25,6 @@ abbrev ConnectionM := StateRefT Connection Async
 
 namespace ConnectionM
 
-instance : MonadAwait AsyncTask ConnectionM := sorry
-instance : MonadAsync AsyncTask ConnectionM := sorry
-
 def run (x : ConnectionM α) (client : TCP.Socket.Client) : Async α :=
   StateRefT'.run' x { client, buf := .empty, idx := 0 }
 

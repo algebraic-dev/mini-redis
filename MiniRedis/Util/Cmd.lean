@@ -1,0 +1,46 @@
+/-
+Copyright (c) 2025 Lean FRO, LLC. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Henrik Böving
+-/
+import MiniRedis.Util.Cmd.Ping
+import MiniRedis.Util.Cmd.Get
+import MiniRedis.Util.Cmd.Set
+
+
+namespace MiniRedis
+
+inductive Command
+  | ping (ping : Ping)
+  | get (get : Get)
+  | set (set : Set)
+
+namespace Command
+
+def ofFrame (f : Frame) : Except String Command :=
+  CmdParseM.run go f |>.mapError
+    fun
+      | .endOfStream => "protocol error; reached end of stream while parsing"
+      | .other e => e
+where
+  go : CmdParseM Command := do
+    let commandName := (← CmdParseM.nextString).toLower
+    let cmd ←
+      match commandName with
+      | "ping" => Command.ping <$> Ping.ofFrame
+      | "get" => Command.get <$> Get.ofFrame
+      | "set" => Command.set <$> Set.ofFrame
+      | _ => sorry
+
+    CmdParseM.finish
+    return cmd
+
+def toFrame (cmd : Command) : Frame :=
+  match cmd with
+  | .ping p => p.toFrame
+  | .get g => g.toFrame
+  | .set s => s.toFrame
+
+end Command
+
+end MiniRedis

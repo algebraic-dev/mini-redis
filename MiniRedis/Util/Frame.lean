@@ -213,6 +213,16 @@ def parse (buf : ByteArray.Iterator) : Except Error (Frame × ByteArray.Iterator
   discard <| check buf
   parseChecked buf
 
+def pushBulk (f : Frame) (b : ByteArray) : Frame :=
+  match f with
+  | .array vec => .array <| vec.push <| .bulk b
+  | _ => panic! "not an array frame"
+
+def pushInt (f : Frame) (int : Int64) : Frame :=
+  match f with
+  | .array vec => .array <| vec.push <| .integer int
+  | _ => panic! "not an array frame"
+
 end Frame
 
 end MiniRedis
