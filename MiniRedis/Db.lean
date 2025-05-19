@@ -5,7 +5,7 @@ Authors: Henrik Böving
 -/
 import Std.Time.Duration
 import Std.Sync.Mutex
-import Std.Data.HashMap
+import Std.Data.TreeMap
 
 namespace MiniRedis
 
@@ -14,7 +14,8 @@ structure Database.Entry where
   -- TODO: expiresAt
 
 structure Database.State where
-  map : Std.HashMap String Database.Entry
+  -- Use a `TreeMap` instead of `HashMap` because linearity in `Mutex` doesn't work yet
+  map : Std.TreeMap String Database.Entry
 
 structure Database where
   state : Std.Mutex Database.State
