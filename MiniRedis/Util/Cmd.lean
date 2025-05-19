@@ -6,6 +6,7 @@ Authors: Henrik Böving
 import MiniRedis.Util.Cmd.Ping
 import MiniRedis.Util.Cmd.Get
 import MiniRedis.Util.Cmd.Set
+import MiniRedis.Util.Cmd.Unknown
 
 
 namespace MiniRedis
@@ -14,6 +15,7 @@ inductive Command
   | ping (ping : Ping)
   | get (get : Get)
   | set (set : Set)
+  | unknown (unknown : Unknown)
 
 namespace Command
 
@@ -30,7 +32,7 @@ where
       | "ping" => Command.ping <$> Ping.ofFrame
       | "get" => Command.get <$> Get.ofFrame
       | "set" => Command.set <$> Set.ofFrame
-      | _ => sorry
+      | _ => return Command.unknown <| Unknown.mk commandName
 
     CmdParseM.finish
     return cmd
@@ -40,6 +42,7 @@ def toFrame (cmd : Command) : Frame :=
   | .ping p => p.toFrame
   | .get g => g.toFrame
   | .set s => s.toFrame
+  | .unknown u => panic! s!"Don't know how to serialize {u.commandName}"
 
 end Command
 
