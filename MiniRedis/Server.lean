@@ -56,7 +56,7 @@ def run (x : ListenerM α) (addr : Std.Net.SocketAddress) : Async α := do
 partial def serverLoop : ListenerM Unit := do
   let ctx ← read
   let client ← await (← ctx.listener.accept)
-  -- TODO: handle client concurrently
+  -- TODO: run handler async?
   HandlerM.run HandlerM.handlerLoop client ctx.db
 
   -- TODO: avoid infinite task chain
