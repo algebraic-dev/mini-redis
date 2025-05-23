@@ -16,11 +16,11 @@ def runServerCmd (p : Parsed) : IO UInt32 := do
   return 0
 
 def serverCmd : Cmd := `[Cli|
-  serverCmd VIA runServerCmd; ["0.1.0"]
-  "mini-redis-server"
+  "mini-redis" VIA runServerCmd; ["0.1.0"]
+  "mini-redis server application"
 
   FLAGS:
-    p, port : Nat; "The port to host the server on"
+    port : Nat; "The port to host the server on"
 
   EXTENSIONS:
     defaultValues! #[("port", "8080")]

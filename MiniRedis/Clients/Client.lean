@@ -44,8 +44,9 @@ def get (key : String) : ClientM (Option ByteArray) := do
   | .null => return none
   | frame => throw <| .userError s!"Invalid get response: {repr frame}"
 
-private def setCmd (set : Set) : ClientM Unit := do
-  let frame := set.toFrame
+def set (key : String) (value : ByteArray) (expiration : Option Std.Time.Duration := none) :
+    ClientM Unit := do
+  let frame := Set.mk key value expiration |>.toFrame
   ConnectionM.writeFrame frame
 
   match ← readResponse with
@@ -55,12 +56,6 @@ private def setCmd (set : Set) : ClientM Unit := do
     else
       throw <| .userError s!"Invalid set response: {msg}"
   | frame => throw <| .userError s!"Invalid set response: {repr frame}"
-
-def set (key : String) (value : ByteArray) : ClientM Unit :=
-  setCmd <| Set.mk key value none
-
-def setExpires (key : String) (value : ByteArray) (expiration : Std.Time.Duration) : ClientM Unit :=
-  setCmd <| Set.mk key value (some expiration)
 
 end ClientM
 
