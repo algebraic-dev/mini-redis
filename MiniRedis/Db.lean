@@ -59,19 +59,16 @@ private def purgeExpiredKeys (db : Database) : IO (Option Std.Time.Timestamp) :=
     return none
 
 private partial def purgeExpirations (db : Database) : Async Unit := do
-  if let some when ← purgeExpiredKeys db then
-    let now ← Std.Time.Timestamp.now
-    let dur := when - now
-    await <| ← Selectable.one #[
-      .case db.backgroundTaskChannel.recvSelector (fun _ => return AsyncTask.pure ()),
-      .case (← Selector.sleep dur.toMilliseconds) (fun _ => return AsyncTask.pure ())
-    ]
-  else
-    await <| ← db.backgroundTaskChannel.recv
-
-  -- TODO: better recursion primitive
-  discard <| async <| purgeExpirations db
-
+  while true do
+    if let some when ← purgeExpiredKeys db then
+      let now ← Std.Time.Timestamp.now
+      let dur := when - now
+      await <| ← Selectable.one #[
+        .case db.backgroundTaskChannel.recvSelector (fun _ => return AsyncTask.pure ()),
+        .case (← Selector.sleep dur.toMilliseconds) (fun _ => return AsyncTask.pure ())
+      ]
+    else
+      await <| ← db.backgroundTaskChannel.recv
 
 def new : Async Database := do
   let state ← Std.Mutex.new { map := {}, expirations := {} }

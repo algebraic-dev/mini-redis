@@ -22,17 +22,15 @@ def run (x : HandlerM α) (client : TCP.Socket.Client) (db : Database) : Async �
   ReaderT.run x { db } |>.run client
 
 partial def handlerLoop : HandlerM Unit := do
-  let some frame ← ConnectionM.readFrame | return ()
-  let cmd ← Command.ofFrame frame |> IO.ofExcept
+  while true do
+    let some frame ← ConnectionM.readFrame | return ()
+    let cmd ← Command.ofFrame frame |> IO.ofExcept
 
-  match cmd with
-  | .ping p => p.handle
-  | .get g => g.handle (← read).db
-  | .set s => s.handle (← read).db
-  | .unknown u => u.handle
-
-  -- TODO: avoid infinite task chain
-  handlerLoop
+    match cmd with
+    | .ping p => p.handle
+    | .get g => g.handle (← read).db
+    | .set s => s.handle (← read).db
+    | .unknown u => u.handle
 
 end HandlerM
 
@@ -55,12 +53,11 @@ def run (x : ListenerM α) (addr : Std.Net.SocketAddress) : Async α := do
 
 partial def serverLoop : ListenerM Unit := do
   let ctx ← read
-  let client ← await (← ctx.listener.accept)
-  -- TODO: run handler async?
-  HandlerM.run HandlerM.handlerLoop client ctx.db
 
-  -- TODO: avoid infinite task chain
-  serverLoop
+  while true do
+    let client ← await (← ctx.listener.accept)
+    -- TODO: run handler async?
+    HandlerM.run HandlerM.handlerLoop client ctx.db
 
 end ListenerM
 

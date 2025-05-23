@@ -56,20 +56,21 @@ from it and return it as `some frame`. If the TCP connection is closed in a way 
 frame in half it will return `none` instead, otherwise throw an error.
 -/
 partial def readFrame : ConnectionM (Option Frame) := do
-  if let some frame ← parseFrame then
-    return some frame
+  while true do
+    if let some frame ← parseFrame then
+      return some frame
 
-  let buf? ← await <| (← (← get).client.recv? 4096)
-  match buf? with
-  | some buf =>
-    modify fun conn => { conn with buf := conn.buf ++ buf }
-    -- TODO: this should not use tail recursion to avoid the infinite task chain issue
-    readFrame
-  | none =>
-    if (← get).buf.size == (← get).idx then
-      return none
-    else
-      throw <| .userError "Connection reset by peer"
+    let buf? ← await <| (← (← get).client.recv? 4096)
+    match buf? with
+    | some buf =>
+      modify fun conn => { conn with buf := conn.buf ++ buf }
+    | none =>
+      if (← get).buf.size == (← get).idx then
+        return none
+      else
+        throw <| .userError "Connection reset by peer"
+
+  return none
 
 @[inline]
 private def writeU8 (byte : UInt8) : ConnectionM Unit := do
