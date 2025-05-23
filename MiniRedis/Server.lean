@@ -53,9 +53,13 @@ def run (x : ListenerM α) (addr : Std.Net.SocketAddress) : Async α := do
 
 partial def serverLoop : ListenerM Unit := do
   let ctx ← read
+  let serverName ← ctx.listener.getSockName
+  IO.println s!"Starting server loop on {serverName.ipAddr}:{serverName.port}"
 
   while true do
     let client ← await (← ctx.listener.accept)
+    let clientName ← client.getPeerName
+    IO.println s!"Server: Handling client from {clientName.ipAddr}:{clientName.port}"
     -- TODO: run handler async?
     HandlerM.run HandlerM.handlerLoop client ctx.db
 

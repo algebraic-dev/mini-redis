@@ -63,10 +63,12 @@ private partial def purgeExpirations (db : Database) : Async Unit := do
     if let some when ← purgeExpiredKeys db then
       let now ← Std.Time.Timestamp.now
       let dur := when - now
+      IO.println s!"Purge: Will wait for {dur.toMilliseconds}ms"
       await <| ← Selectable.one #[
         .case db.backgroundTaskChannel.recvSelector (fun _ => return AsyncTask.pure ()),
         .case (← Selector.sleep dur.toMilliseconds) (fun _ => return AsyncTask.pure ())
       ]
+      IO.println s!"Purge: Awoken"
     else
       await <| ← db.backgroundTaskChannel.recv
 
