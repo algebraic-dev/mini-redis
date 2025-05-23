@@ -13,43 +13,56 @@ open Std.Internal.IO.Async
 
 structure HandlerContext where
   db : Database
+  connectionLimit : Std.Channel Unit
 
 abbrev HandlerM := ReaderT HandlerContext ConnectionM
 
 namespace HandlerM
 
-def run (x : HandlerM α) (client : TCP.Socket.Client) (db : Database) : Async α :=
-  ReaderT.run x { db } |>.run client
+def run (x : HandlerM α) (client : TCP.Socket.Client) (db : Database)
+    (connectionLimit : Std.Channel Unit) : Async α :=
+  ReaderT.run x { db, connectionLimit } |>.run client
 
 partial def handlerLoop : HandlerM Unit := do
-  while true do
-    let some frame ← ConnectionM.readFrame | return ()
-    let cmd ← Command.ofFrame frame |> IO.ofExcept
+  try
+    while true do
+      let some frame ← ConnectionM.readFrame | break
+      let cmd ← Command.ofFrame frame |> IO.ofExcept
 
-    match cmd with
-    | .ping p => p.handle
-    | .get g => g.handle (← read).db
-    | .set s => s.handle (← read).db
-    | .unknown u => u.handle
+      match cmd with
+      | .ping p => p.handle
+      | .get g => g.handle (← read).db
+      | .set s => s.handle (← read).db
+      | .unknown u => u.handle
+  finally
+    -- Relinquish a connection limit token
+    (← read).connectionLimit.sync.send ()
 
 end HandlerM
 
 structure ListenerContext where
   listener : TCP.Socket.Server
   db : Database
-  -- TODO: connection limit
+  connectionLimit : Std.Channel Unit
   -- TODO: shutdown
 
 abbrev ListenerM := ReaderT ListenerContext Async
 
 namespace ListenerM
 
-def run (x : ListenerM α) (addr : Std.Net.SocketAddress) : Async α := do
+def run (x : ListenerM α) (addr : Std.Net.SocketAddress) (maxConnections : Nat := 1) :
+    Async α := do
   let server ← TCP.Socket.Server.mk
   server.bind addr
   server.listen 4
   let db ← Database.new
-  ReaderT.run x { listener := server, db }
+
+  -- Prepare the connection limit mechanism with `maxConnections` connection tokens
+  let connectionLimit ← Std.Channel.new (some maxConnections)
+  for _ in [:maxConnections] do
+    connectionLimit.sync.send ()
+
+  ReaderT.run x { listener := server, db, connectionLimit }
 
 partial def serverLoop : ListenerM Unit := do
   let ctx ← read
@@ -57,11 +70,13 @@ partial def serverLoop : ListenerM Unit := do
   IO.println s!"Starting server loop on {serverName.ipAddr}:{serverName.port}"
 
   while true do
+    -- Acquire a connection limit token
+    await <| ← (← read).connectionLimit.recv
     let client ← await (← ctx.listener.accept)
     let clientName ← client.getPeerName
     IO.println s!"Server: Handling client from {clientName.ipAddr}:{clientName.port}"
     -- TODO: run handler async?
-    HandlerM.run HandlerM.handlerLoop client ctx.db
+    HandlerM.run HandlerM.handlerLoop client ctx.db ctx.connectionLimit
 
 end ListenerM
 
