@@ -4,10 +4,27 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving
 -/
 import MiniRedis.Server
+import Cli
 
 open MiniRedis
+open Cli
 
-def main : IO Unit := do
-  IO.println "Starting server"
-  let addr := Std.Net.SocketAddressV4.mk (.ofParts 127 0 0 1) 8080
+def runServerCmd (p : Parsed) : IO UInt32 := do
+  let port := p.flag! "port" |>.as! Nat
+  let addr := Std.Net.SocketAddressV4.mk (.ofParts 127 0 0 1) port
   ListenerM.run ListenerM.serverLoop addr |>.wait
+  return 0
+
+def serverCmd : Cmd := `[Cli|
+  serverCmd VIA runServerCmd; ["0.1.0"]
+  "mini-redis-server"
+
+  FLAGS:
+    p, port : Nat; "The port to host the server on"
+
+  EXTENSIONS:
+    defaultValues! #[("port", "8080")]
+]
+
+def main (args : List String) : IO UInt32 := do
+  serverCmd.validate args
