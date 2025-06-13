@@ -7,7 +7,6 @@ import MiniRedis.Util.Frame
 
 namespace MiniRedis
 
--- TODO: use our iterator API
 structure ParseState where
   arr : Array Frame
   idx : Nat

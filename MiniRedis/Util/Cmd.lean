@@ -7,6 +7,8 @@ import MiniRedis.Util.Cmd.Ping
 import MiniRedis.Util.Cmd.Get
 import MiniRedis.Util.Cmd.Set
 import MiniRedis.Util.Cmd.Unknown
+import MiniRedis.Util.Cmd.Publish
+import MiniRedis.Util.Cmd.Subscribe
 
 
 namespace MiniRedis
@@ -16,6 +18,7 @@ inductive Command
   | get (get : Get)
   | set (set : Set)
   | unknown (unknown : Unknown)
+  | publish (pub : Publish)
 
 namespace Command
 
@@ -32,6 +35,7 @@ where
       | "ping" => Command.ping <$> Ping.ofFrame
       | "get" => Command.get <$> Get.ofFrame
       | "set" => Command.set <$> Set.ofFrame
+      | "publish" => Command.publish <$> Publish.ofFrame
       | _ => return Command.unknown <| Unknown.mk commandName
 
     CmdParseM.finish
@@ -42,6 +46,7 @@ def toFrame (cmd : Command) : Frame :=
   | .ping p => p.toFrame
   | .get g => g.toFrame
   | .set s => s.toFrame
+  | .publish p => p.toFrame
   | .unknown u => panic! s!"Don't know how to serialize {u.commandName}"
 
 end Command

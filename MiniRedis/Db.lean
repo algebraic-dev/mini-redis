@@ -11,6 +11,7 @@ import Std.Data.TreeMap
 import Std.Data.TreeSet
 import Std.Internal.Async.Basic
 import Std.Internal.Async.Timer
+import MiniRedis.Util.Broadcast
 
 namespace MiniRedis
 
@@ -24,6 +25,7 @@ structure Database.State where
   -- Use a `TreeMap` instead of `HashMap` because linearity in `Mutex` doesn't work yet
   map : Std.TreeMap String Database.Entry
   expirations : Std.TreeSet (Std.Time.Timestamp × String)
+  pubSub : Std.HashMap String (Broadcast ByteArray)
 
 structure Database where
   state : Std.Mutex Database.State
@@ -73,7 +75,7 @@ private partial def purgeExpirations (db : Database) : Async Unit := do
       await <| ← db.backgroundTaskChannel.recv
 
 def new : Async Database := do
-  let state ← Std.Mutex.new { map := {}, expirations := {} }
+  let state ← Std.Mutex.new { map := {}, expirations := {}, pubSub := {} }
   let backgroundTaskChannel ← Std.Channel.new (some 0)
   let db := { state, backgroundTaskChannel }
   discard <| async (purgeExpirations db)
@@ -112,6 +114,14 @@ def set (db : Database) (key : String) (value : ByteArray) (expire : Option Std.
   if notify then
     -- the background task should always be ready so no need for async stuff
     db.backgroundTaskChannel.sync.send ()
+
+def publish (db : Database) (key : String) (value : ByteArray) : IO Nat := do
+  db.state.atomically do
+    -- TODO: correct error handling
+    let foo ← (← get).pubSub[key]?.mapM (fun b => b.send value)
+    match foo with
+    | some _ => return 10
+    | none => return 0
 
 end Database
 
