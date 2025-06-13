@@ -13,7 +13,7 @@ namespace MiniRedis
 structure Subscribe where
   channels : Array String
 
-namespace Publish
+namespace Subscribe
 
 def ofFrame : CmdParseM Subscribe := do
   let mut channels := #[]
@@ -34,6 +34,6 @@ def toFrame (sub : Subscribe) : Frame := Id.run do
     frame := frame.pushBulk channel.toUTF8
   return frame
 
-end Publish
+end Subscribe
 
 end MiniRedis

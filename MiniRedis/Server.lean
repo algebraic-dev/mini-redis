@@ -33,6 +33,7 @@ partial def handlerLoop : HandlerM Unit := do
       | .ping p => p.handle
       | .get g => g.handle (← read).db
       | .set s => s.handle (← read).db
+      | .publish p => p.handle (← read).db
       | .unknown u => u.handle
   finally
     -- Relinquish a connection limit token
