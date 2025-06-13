@@ -75,8 +75,7 @@ partial def serverLoop : ListenerM Unit := do
     let client ← await (← ctx.listener.accept)
     let clientName ← client.getPeerName
     IO.println s!"Server: Handling client from {clientName.ipAddr}:{clientName.port}"
-    -- TODO: run handler async?
-    HandlerM.run HandlerM.handlerLoop client ctx.db ctx.connectionLimit
+    discard <| async (t := AsyncTask) <| HandlerM.handlerLoop.run client ctx.db ctx.connectionLimit
 
 end ListenerM
 
