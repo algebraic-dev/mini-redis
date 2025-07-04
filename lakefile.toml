@@ -6,7 +6,6 @@ testDriver = "Test"
 [[require]]
 scope = "leanprover"
 name = "Cli"
-version = "git#v4.20.0-rc2"
 
 [[lean_lib]]
 name = "MiniRedis"
