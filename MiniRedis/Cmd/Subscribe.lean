@@ -3,9 +3,9 @@ Copyright (c) 2025 Lean FRO, LLC. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving
 -/
-import MiniRedis.Util.Frame
-import MiniRedis.Util.Cmd.Parse
-import MiniRedis.Util.Connection
+import MiniRedis.Frame
+import MiniRedis.Cmd.Basic
+import MiniRedis.Connection
 import MiniRedis.Db
 
 namespace MiniRedis
@@ -15,6 +15,9 @@ structure Subscribe where
 
 namespace Subscribe
 
+/--
+Parses a `String` into a `Frame`.
+-/
 def ofFrame : CmdParseM Subscribe := do
   let mut channels := #[]
   channels := channels.push (← CmdParseM.nextString)
@@ -23,10 +26,16 @@ def ofFrame : CmdParseM Subscribe := do
 
   return Subscribe.mk channels
 
-def handle (sub : Subscribe) (db : Database) : ConnectionM Unit := do
+/--
+Runs a `Frame` with a `Database`.
+-/
+def handle (_sub : Subscribe) (_db : Database) : ConnectionM Unit := do
   -- TODO: This requires select with monad stacks to implement like rust
   throw <| .userError "Not implemented yet"
 
+/--
+Creates a `Frame` out of a `Frame`.
+-/
 def toFrame (sub : Subscribe) : Frame := Id.run do
   let mut frame := Frame.array #[]
   frame := frame.pushBulk "subscribe".toUTF8
@@ -35,5 +44,4 @@ def toFrame (sub : Subscribe) : Frame := Id.run do
   return frame
 
 end Subscribe
-
 end MiniRedis

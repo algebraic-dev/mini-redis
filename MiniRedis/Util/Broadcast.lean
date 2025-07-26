@@ -8,12 +8,19 @@ import Std.Data.TreeMap
 
 namespace MiniRedis
 
--- TODO: good broadcast implementation upstream
+--- TODO: good broadcast implementation upstream
+--- TODO: consider async
 
+/--
+Represents a receiver in the broadcast system with unique ID and channel
+-/
 structure Broadcast.Receiver (α : Type) where
   id : Nat
   channel : Std.Channel α
 
+/--
+Manages multiple receivers for broadcasting messages to all subscribers
+-/
 structure Broadcast (α : Type) where
   channels : Std.TreeMap Nat (Broadcast.Receiver α)
   nextId : Nat
@@ -21,12 +28,20 @@ structure Broadcast (α : Type) where
 
 namespace Broadcast
 
+/--
+Creates a new broadcast instance with specified channel capacity
+-/
 def new (capacity : Nat) : Broadcast α := { channels := {}, nextId := 0, capacity }
 
--- TODO: consider async
+/--
+Sends a message to all registered receivers in the broadcast
+-/
 def send (b : Broadcast α) (x : α) : BaseIO Unit := do
-  b.channels.forM (fun key recv => recv.channel.sync.send x)
+  b.channels.forM (fun _ recv => recv.channel.sync.send x)
 
+/--
+Creates a new receiver and adds it to the broadcast system
+-/
 def receiver (b : Broadcast α) : BaseIO (Broadcast.Receiver α × Broadcast α) := do
   let receiver := { id := b.nextId, channel := ← Std.Channel.new b.capacity }
   return (
@@ -38,16 +53,20 @@ def receiver (b : Broadcast α) : BaseIO (Broadcast.Receiver α × Broadcast α)
     }
   )
 
+/--
+Removes a receiver from the broadcast system by its ID
+-/
 def unsubscribe (b : Broadcast α) (r : Broadcast.Receiver α) : Broadcast α :=
   { b with channels := b.channels.erase r.id }
 
 namespace Receiver
 
+/--
+Receives the next message from the receiver's channel
+-/
 def receive [Inhabited α] (r : Receiver α) : BaseIO (Task α) := do
   r.channel.recv
 
 end Receiver
-
 end Broadcast
-
 end MiniRedis

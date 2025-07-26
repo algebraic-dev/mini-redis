@@ -3,13 +3,12 @@ Copyright (c) 2025 Lean FRO, LLC. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving
 -/
-import MiniRedis.Util.Cmd.Ping
-import MiniRedis.Util.Cmd.Get
-import MiniRedis.Util.Cmd.Set
-import MiniRedis.Util.Cmd.Unknown
-import MiniRedis.Util.Cmd.Publish
-import MiniRedis.Util.Cmd.Subscribe
-
+import MiniRedis.Cmd.Ping
+import MiniRedis.Cmd.Get
+import MiniRedis.Cmd.Set
+import MiniRedis.Cmd.Unknown
+import MiniRedis.Cmd.Publish
+import MiniRedis.Cmd.Subscribe
 
 namespace MiniRedis
 
@@ -50,5 +49,4 @@ def toFrame (cmd : Command) : Frame :=
   | .unknown u => panic! s!"Don't know how to serialize {u.commandName}"
 
 end Command
-
 end MiniRedis

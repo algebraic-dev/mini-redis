@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving
 -/
 
-import MiniRedis.Util.Frame
+import MiniRedis.Frame
 
 open MiniRedis
 
@@ -43,6 +43,10 @@ def run (input : String) : Frame := (Prod.fst <$> Frame.parse input.toUTF8.iter)
 /-- info: true -/
 #guard_msgs in
 #eval run "$-1\r\n" == .null
+
+/-- info: true -/
+#guard_msgs in
+#eval run "*-1\r\n" == .null
 
 /-- info: true -/
 #guard_msgs in

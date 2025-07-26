@@ -3,9 +3,9 @@ Copyright (c) 2025 Lean FRO, LLC. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving
 -/
-import MiniRedis.Util.Frame
-import MiniRedis.Util.Cmd.Parse
-import MiniRedis.Util.Connection
+import MiniRedis.Frame
+import MiniRedis.Cmd.Basic
+import MiniRedis.Connection
 
 namespace MiniRedis
 
@@ -14,6 +14,9 @@ structure Ping where
 
 namespace Ping
 
+/--
+Parses a `String` into a `Ping`.
+-/
 def ofFrame : CmdParseM Ping := do
   if ← CmdParseM.hasNext then
     let bytes ← CmdParseM.nextBytes
@@ -21,6 +24,9 @@ def ofFrame : CmdParseM Ping := do
   else
     return Ping.mk none
 
+/--
+Runs a `Ping` with a `Database`.
+-/
 def handle (p : Ping) : ConnectionM Unit := do
   let response :=
     match p.msg with
@@ -29,6 +35,9 @@ def handle (p : Ping) : ConnectionM Unit := do
 
     ConnectionM.writeFrame response
 
+/--
+Creates a `Frame` out of a `Ping`.
+-/
 def toFrame (ping : Ping) : Frame := Id.run do
   let mut frame := Frame.array #[]
   frame := frame.pushBulk "ping".toUTF8
@@ -37,5 +46,4 @@ def toFrame (ping : Ping) : Frame := Id.run do
   return frame
 
 end Ping
-
 end MiniRedis
