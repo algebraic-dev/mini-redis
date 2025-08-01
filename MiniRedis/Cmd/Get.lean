@@ -6,21 +6,33 @@ Authors: Henrik Böving
 import MiniRedis.Frame
 import MiniRedis.Cmd.Basic
 import MiniRedis.Connection
-import MiniRedis.Db
+
+/-!
+This module implements parsing and interpretation of the Redis `GET` command.
+Reference: https://redis.io/docs/latest/commands/get/
+-/
 
 namespace MiniRedis
 
+/--
+Structure that represents a command for getting the value of a key. Returns a bulk string if
+the value of the key exists, otherwise returns NIL.
+-/
 structure Get where
   key : String
 
-namespace Get
+instance : OfFrame Get where
+  ofFrame := do
+    let key ← CmdParseM.nextString
+    return Get.mk key
 
-/--
-Parses a `String` into a `Get`.
--/
-def ofFrame : CmdParseM Get := do
-  let key ← CmdParseM.nextString
-  return Get.mk key
+instance : ToFrame Get where
+  toFrame get :=
+    Frame.array #[]
+    |>.pushBulk "get".toUTF8
+    |>.pushBulk get.key.toUTF8
+
+namespace Get
 
 /--
 Runs a `Get` with a `Database`.
@@ -30,15 +42,6 @@ def handle (get : Get) (db : Database) : ConnectionM Unit := do
     ConnectionM.writeFrame <| Frame.bulk val
   else
     ConnectionM.writeFrame Frame.null
-
-/--
-Creates a `Frame` out of a `Get`.
--/
-def toFrame (get : Get) : Frame := Id.run do
-  let mut frame := Frame.array #[]
-  frame := frame.pushBulk "get".toUTF8
-  frame := frame.pushBulk get.key.toUTF8
-  return frame
 
 end Get
 end MiniRedis

@@ -18,6 +18,7 @@ inductive Command
   | set (set : Set)
   | unknown (unknown : Unknown)
   | publish (pub : Publish)
+  | subscribe (sub : Subscribe)
 
 namespace Command
 
@@ -31,10 +32,11 @@ where
     let commandName := (← CmdParseM.nextString).toLower
     let cmd ←
       match commandName with
-      | "ping" => Command.ping <$> Ping.ofFrame
-      | "get" => Command.get <$> Get.ofFrame
-      | "set" => Command.set <$> Set.ofFrame
-      | "publish" => Command.publish <$> Publish.ofFrame
+      | "ping" => Command.ping <$> OfFrame.ofFrame
+      | "get" => Command.get <$> OfFrame.ofFrame
+      | "set" => Command.set <$> OfFrame.ofFrame
+      | "publish" => Command.publish <$> OfFrame.ofFrame
+      | "subscribe" => Command.subscribe <$> OfFrame.ofFrame
       | _ => return Command.unknown <| Unknown.mk commandName
 
     CmdParseM.finish
@@ -42,10 +44,11 @@ where
 
 def toFrame (cmd : Command) : Frame :=
   match cmd with
-  | .ping p => p.toFrame
-  | .get g => g.toFrame
-  | .set s => s.toFrame
-  | .publish p => p.toFrame
+  | .ping p => ToFrame.toFrame p
+  | .get g => ToFrame.toFrame g
+  | .set s => ToFrame.toFrame s
+  | .publish p => ToFrame.toFrame p
+  | .subscribe p => ToFrame.toFrame p
   | .unknown u => panic! s!"Don't know how to serialize {u.commandName}"
 
 end Command

@@ -6,12 +6,19 @@ Authors: Henrik Böving
 import MiniRedis.Server
 import Cli
 
+
+import MiniRedis.Util.Cancellable
+import MiniRedis.Util.Signal
+import MiniRedis.Util.Notify
+import Std.Internal.Async
+open Std.Internal.IO.Async
+
 open MiniRedis
 open Cli
 
 def runServerCmd (p : Parsed) : IO UInt32 := do
   let port := p.flag! "port" |>.as! Nat
-  let addr := Std.Net.SocketAddressV4.mk (.ofParts 127 0 0 1) port
+  let addr := Std.Net.SocketAddressV4.mk (.ofParts 127 0 0 1) port.toUInt16
   ListenerM.run ListenerM.serverLoop addr |>.wait
   return 0
 

@@ -7,6 +7,11 @@ import MiniRedis.Frame
 import MiniRedis.Connection
 import MiniRedis.Db
 
+/-!
+This module defines the monad `CmdParseM`, which facilitates monadic parsing of a `Frame` into a more
+structured and meaningful representation, such as a Redis command or message.
+-/
+
 namespace MiniRedis
 
 /--
@@ -27,6 +32,18 @@ inductive CmdParseError where
 Monadic parser combining state tracking with error handling for command parsing
 -/
 abbrev CmdParseM := StateT ParseState <| Except CmdParseError
+
+/--
+A typeclass for types that can be converted into a `Frame`.
+-/
+class ToFrame (α : Type) where
+  toFrame : α → Frame
+
+/--
+A typeclass for types that can be parsed from a `Frame`.
+-/
+class OfFrame (α : Type) where
+  ofFrame : CmdParseM α
 
 namespace CmdParseM
 

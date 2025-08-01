@@ -21,8 +21,8 @@ inductive Frame where
   | error (msg : String)
   | integer (int : Int64)
   | bulk (bytes : ByteArray)
-  | null
   | array (arr : Array Frame)
+  | null
 deriving Inhabited, BEq, Repr
 
 namespace Frame

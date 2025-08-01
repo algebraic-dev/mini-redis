@@ -6,42 +6,44 @@ Authors: Henrik Böving
 import MiniRedis.Frame
 import MiniRedis.Cmd.Basic
 import MiniRedis.Connection
-import MiniRedis.Db
+
+/-!
+This module implements parsing and interpretation of the Redis `PUBLISH` command.
+Reference: https://redis.io/docs/latest/commands/publish
+-/
 
 namespace MiniRedis
 
+/--
+Structure that represents a command for posting a message to a given channel.
+-/
 structure Publish where
   channel : String
   message : ByteArray
 
-namespace Publish
+instance : OfFrame Publish where
+  ofFrame := do
+    let channel ← CmdParseM.nextString
+    let messages ← CmdParseM.nextBytes
+    return Publish.mk channel messages
 
-/--
-Parses a `String` into a `Publish`.
--/
-def ofFrame : CmdParseM Publish := do
-  let channel ← CmdParseM.nextString
-  let messages ← CmdParseM.nextBytes
-  return Publish.mk channel messages
+instance : ToFrame Publish where
+  toFrame pub := Id.run do
+    let mut frame := Frame.array #[]
+    frame := frame.pushBulk "publish".toUTF8
+    frame := frame.pushBulk pub.channel.toUTF8
+    frame := frame.pushBulk pub.message
+    return frame
+
+namespace Publish
 
 /--
 Runs a `Publish` with a `Database`.
 -/
 def handle (pub : Publish) (db : Database) : ConnectionM Unit := do
   let numSubscribers ← db.publish pub.channel pub.message
-  let frame := Frame.array #[] |>.pushInt numSubscribers
-  ConnectionM.writeFrame <| frame
-
-/--
-Creates a `Frame` out of a `Publish`.
--/
-def toFrame (pub : Publish) : Frame := Id.run do
-  let mut frame := Frame.array #[]
-  frame := frame.pushBulk "publish".toUTF8
-  frame := frame.pushBulk pub.channel.toUTF8
-  frame := frame.pushBulk pub.message
-  return frame
+  let frame := Frame.array #[] |>.pushInt numSubscribers.toInt64
+  ConnectionM.writeFrame frame
 
 end Publish
-
 end MiniRedis

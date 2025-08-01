@@ -24,9 +24,11 @@ def run (x : HandlerM α) (client : TCP.Socket.Client) (db : Database)
   ReaderT.run x { db, connectionLimit } |>.run client
 
 partial def handlerLoop : HandlerM Unit := do
+  let signal ← Signal.new
+
   try
     while true do
-      let some frame ← ConnectionM.readFrame | break
+      let some frame ← ConnectionM.readFrame signal | break
       let cmd ← Command.ofFrame frame |> IO.ofExcept
 
       match cmd with
@@ -34,6 +36,7 @@ partial def handlerLoop : HandlerM Unit := do
       | .get g => g.handle (← read).db
       | .set s => s.handle (← read).db
       | .publish p => p.handle (← read).db
+      | .subscribe p => p.handle (← read).db
       | .unknown u => u.handle
   finally
     -- Relinquish a connection limit token
@@ -51,8 +54,7 @@ abbrev ListenerM := ReaderT ListenerContext Async
 
 namespace ListenerM
 
-def run (x : ListenerM α) (addr : Std.Net.SocketAddress) (maxConnections : Nat := 1) :
-    Async α := do
+def run (x : ListenerM α) (addr : Std.Net.SocketAddress) (maxConnections : Nat := 128) : Async α := do
   let server ← TCP.Socket.Server.mk
   server.bind addr
   server.listen 4
@@ -60,6 +62,7 @@ def run (x : ListenerM α) (addr : Std.Net.SocketAddress) (maxConnections : Nat 
 
   -- Prepare the connection limit mechanism with `maxConnections` connection tokens
   let connectionLimit ← Std.Channel.new (some maxConnections)
+
   for _ in [:maxConnections] do
     connectionLimit.sync.send ()
 
@@ -73,11 +76,13 @@ partial def serverLoop : ListenerM Unit := do
   while true do
     -- Acquire a connection limit token
     await <| ← (← read).connectionLimit.recv
+
     let client ← await (← ctx.listener.accept)
     let clientName ← client.getPeerName
     IO.println s!"Server: Handling client from {clientName.ipAddr}:{clientName.port}"
-    discard <| async (t := AsyncTask) <| HandlerM.handlerLoop.run client ctx.db ctx.connectionLimit
+    let task := HandlerM.handlerLoop.run client ctx.db ctx.connectionLimit
+
+    background .default task
 
 end ListenerM
-
 end MiniRedis

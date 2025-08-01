@@ -3,11 +3,6 @@ Copyright (c) 2025 Lean FRO, LLC. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving
 -/
-/-
-Copyright (c) 2025 Lean FRO, LLC. All rights reserved.
-Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Henrik Böving
--/
 import MiniRedis.Connection
 import MiniRedis.Cmd
 
@@ -25,15 +20,17 @@ def run (x : ClientM α) (addr : Std.Net.SocketAddress) : Async α := do
   ConnectionM.run x client
 
 private def readResponse : ClientM Frame := do
-  let response? ← ConnectionM.readFrame
+  let response? ← ConnectionM.readFrame (← Signal.new)
   match response? with
-  | some (.error msg) => throw <| .userError s!"Received error from server: {msg}"
-  | some frame => return frame
+  | some (.error msg) =>
+    throw <| .userError s!"Received error from server: {msg}"
+  | some frame =>
+    return frame
   | none =>
     throw <| .resourceVanished 0 "connection reset by server"
 
 def ping (msg : Option ByteArray) : ClientM ByteArray := do
-  let frame := Ping.mk msg |>.toFrame
+  let frame := ToFrame.toFrame <| Ping.mk msg
   ConnectionM.writeFrame frame
   match ← readResponse with
   | .simple value => return value.toUTF8
@@ -41,7 +38,7 @@ def ping (msg : Option ByteArray) : ClientM ByteArray := do
   | frame => throw <| .userError s!"Invalid ping response: {repr frame}"
 
 def get (key : String) : ClientM (Option ByteArray) := do
-  let frame := Get.mk key |>.toFrame
+  let frame := ToFrame.toFrame <| Get.mk key
   ConnectionM.writeFrame frame
   match ← readResponse with
   | .simple value => return some value.toUTF8
@@ -49,9 +46,8 @@ def get (key : String) : ClientM (Option ByteArray) := do
   | .null => return none
   | frame => throw <| .userError s!"Invalid get response: {repr frame}"
 
-def set (key : String) (value : ByteArray) (expiration : Option Std.Time.Duration := none) :
-    ClientM Unit := do
-  let frame := Set.mk key value expiration |>.toFrame
+def set (key : String) (value : ByteArray) (expiration : Option Std.Time.Duration := none) : ClientM Unit := do
+  let frame := ToFrame.toFrame <| Set.mk key value expiration
   ConnectionM.writeFrame frame
 
   match ← readResponse with
@@ -63,5 +59,4 @@ def set (key : String) (value : ByteArray) (expiration : Option Std.Time.Duratio
   | frame => throw <| .userError s!"Invalid set response: {repr frame}"
 
 end ClientM
-
 end MiniRedis

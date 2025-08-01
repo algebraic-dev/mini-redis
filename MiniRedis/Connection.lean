@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving
 -/
 import MiniRedis.Frame
+import MiniRedis.Util.Signal
 import Std.Internal.Async.TCP
 
 /-!
@@ -12,7 +13,6 @@ the Redis protocol by sending and receiving `Frame`s.
 -/
 
 namespace MiniRedis
-
 open Std.Internal.IO.Async
 
 private structure Connection where
@@ -20,13 +20,17 @@ private structure Connection where
   client : TCP.Socket.Client
   buf : ByteArray
   idx : Nat
+  shutdown : Signal
 
 abbrev ConnectionM := StateRefT Connection Async
 
+instance : MonadLift IO ConnectionM where
+  monadLift m := m
+
 namespace ConnectionM
 
-def run (x : ConnectionM α) (client : TCP.Socket.Client) : Async α :=
-  StateRefT'.run' x { client, buf := .empty, idx := 0 }
+def run (x : ConnectionM α) (client : TCP.Socket.Client) : Async α := do
+  StateRefT'.run' x { client, buf := .empty, idx := 0 , shutdown := (← Signal.new) }
 
 /--
 Attempt to parse a frame from the internal buffer. If the buffer does contain enough data the frame
@@ -55,20 +59,28 @@ This function will (asynchronously) wait until enough data is available to actua
 from it and return it as `some frame`. If the TCP connection is closed in a way that doesn't break a
 frame in half it will return `none` instead, otherwise throw an error.
 -/
-partial def readFrame : ConnectionM (Option Frame) := do
+partial def readFrame (cancel : Signal) : ConnectionM (Option Frame) := do
   while true do
     if let some frame ← parseFrame then
       return some frame
 
-    let buf? ← await <| (← (← get).client.recv? 4096)
+    let recv ← (← get).client.recvSelector 4096
+
+    let buf? ← await (← Selectable.one #[
+      .case recv (fun x => pure <| pure (some x)),
+      .case cancel.selector (fun _ => pure <| pure none)
+    ])
+
     match buf? with
-    | some buf =>
+    | some (some buf) =>
       modify fun conn => { conn with buf := conn.buf ++ buf }
-    | none =>
+    | some none =>
       if (← get).buf.size == (← get).idx then
         return none
       else
         throw <| .userError "Connection reset by peer"
+    | none =>
+      return none
 
   return none
 

@@ -36,8 +36,9 @@ def new (capacity : Nat) : Broadcast α := { channels := {}, nextId := 0, capaci
 /--
 Sends a message to all registered receivers in the broadcast
 -/
-def send (b : Broadcast α) (x : α) : BaseIO Unit := do
+def send (b : Broadcast α) (x : α) : BaseIO Nat := do
   b.channels.forM (fun _ recv => recv.channel.sync.send x)
+  return b.channels.size
 
 /--
 Creates a new receiver and adds it to the broadcast system
@@ -66,6 +67,12 @@ Receives the next message from the receiver's channel
 -/
 def receive [Inhabited α] (r : Receiver α) : BaseIO (Task α) := do
   r.channel.recv
+
+/--
+Gets the selector of the channel.
+-/
+def receiveSelector [Inhabited α] (r : Receiver α) : Std.Internal.IO.Async.Selector α :=
+  r.channel.recvSelector
 
 end Receiver
 end Broadcast
