@@ -16,7 +16,7 @@ namespace ClientM
 
 def run (x : ClientM α) (addr : Std.Net.SocketAddress) : Async α := do
   let client ← TCP.Socket.Client.mk
-  await <| (← client.connect addr)
+  client.connect addr
   ConnectionM.run x client
 
 private def readResponse : ClientM Frame := do

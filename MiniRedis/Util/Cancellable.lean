@@ -12,10 +12,12 @@ open Std.Internal.IO.Async
 
 namespace MiniRedis
 
-def cancellableSelector [Monad m] [MonadLift IO m] [MonadAsync AsyncTask m] (fn : Signal → m α) : m (Selector (Except IO.Error α)) := do
-  let signal ← Signal.new
-  let promise ← IO.Promise.new
+def isCancelled (x : IO.Promise Bool) : IO Bool := do
+  if ¬ (← x.isResolved) then return false else return x.result!.get
 
+def cancellableSelector [Monad m] [MonadLift IO m] [MonadAsync AsyncTask m] (fn : IO.Promise Bool → m α) : m (Selector (Except IO.Error α)) := do
+  let signal ← IO.Promise.new
+  let promise ← IO.Promise.new
   let result : AsyncTask α ← async (fn signal)
 
   IO.chainTask result (promise.resolve ·)
@@ -29,9 +31,12 @@ def cancellableSelector [Monad m] [MonadLift IO m] [MonadAsync AsyncTask m] (fn 
     registerFn := fun waiter => do
       discard <| IO.mapTask (t := promise.result?) fun
         | none => pure ()
-        | some res => waiter.race (pure ()) (·.resolve (.ok res))
+        | some res => do
+          if ¬ (← isCancelled signal) then
+            waiter.race (pure ()) (·.resolve (.ok res))
 
-    unregisterFn := signal.signal
+    unregisterFn := do
+      signal.resolve true
   }
 
 

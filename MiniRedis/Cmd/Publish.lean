@@ -42,7 +42,7 @@ Runs a `Publish` with a `Database`.
 -/
 def handle (pub : Publish) (db : Database) : ConnectionM Unit := do
   let numSubscribers ← db.publish pub.channel pub.message
-  let frame := Frame.array #[] |>.pushInt numSubscribers.toInt64
+  let frame := Frame.array #[] |>.pushInt (numSubscribers.getD 0).toInt64
   ConnectionM.writeFrame frame
 
 end Publish

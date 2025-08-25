@@ -11,7 +11,7 @@ import Std.Data.TreeMap
 import Std.Data.TreeSet
 import Std.Internal.Async.Basic
 import Std.Internal.Async.Timer
-import MiniRedis.Util.Broadcast
+import Std.Sync.Broadcast
 
 namespace MiniRedis
 
@@ -25,6 +25,7 @@ structure Database.Entry where
   value : ByteArray
   expiresAt : Option Std.Time.Timestamp
 
+
 /--
 The internal state of the database containing the key-value store, expirations, and pub-sub channels
 -/
@@ -35,12 +36,12 @@ structure Database.State where
   /--
   Tracks key time to live timestamps.
   -/
-  expirations : Std.TreeSet (Std.Time.Timestamp × String)
+  expirations : Std.TreeSet (Std.Time.Timestamp × String) (cmp := compareLex (compareOn (·.1)) (compareOn (·.2)))
 
   /--
   Pub/Sub System.
   -/
-  pubSub : Std.HashMap String (Broadcast ByteArray)
+  pubSub : Std.HashMap String (Std.Broadcast ByteArray)
 
 /--
 Get the timestamp of the next key expiration, if any
@@ -83,10 +84,12 @@ private partial def purgeExpirations (db : Database) : Async Unit := do
       let now ← Std.Time.Timestamp.now
       let dur := when - now
       IO.println s!"Purge: Will wait for {dur.toMilliseconds}ms"
-      await <| ← Selectable.one #[
+
+      Selectable.one #[
         .case db.backgroundTaskChannel.recvSelector (fun _ => return AsyncTask.pure ()),
         .case (← Selector.sleep dur.toMilliseconds) (fun _ => return AsyncTask.pure ())
       ]
+
       IO.println s!"Purge: Awoken"
     else
       await <| ← db.backgroundTaskChannel.recv
@@ -143,14 +146,17 @@ def set (db : Database) (key : String) (value : ByteArray) (expire : Option Std.
 /--
 Subscribes to a new channel returning a new receiver
 -/
-def subscribe (db : Database) (key : String) : IO (Broadcast.Receiver ByteArray) := do
+def subscribe (db : Database) (key : String) : IO (Std.Broadcast.Receiver ByteArray) := do
   db.state.atomically do
     let env ← get
 
     let (receiver, broadcast) ←
       match env.pubSub[key]? with
-      | some broadcast => broadcast.receiver
-      | none => Broadcast.new 1024 |>.receiver
+      | some broadcast => do
+        pure (← broadcast.subscribe, broadcast)
+      | none => do
+        let broadcast ← Std.Broadcast.new
+        pure (← broadcast.subscribe, broadcast)
 
     MonadState.set { env with pubSub := env.pubSub.insert key broadcast }
     pure receiver
@@ -158,12 +164,13 @@ def subscribe (db : Database) (key : String) : IO (Broadcast.Receiver ByteArray)
 /--
 Publish a message to all subscribers of a channel, returning the number of subscribers
 -/
-def publish (db : Database) (key : String) (value : ByteArray) : IO Nat := do
+def publish (db : Database) (key : String) (value : ByteArray) : Async (Option Nat) := do
   db.state.atomically do
-    -- TODO: correct error handling
-    match ← (← get).pubSub[key]?.mapM (fun b => b.send value) with
-    | some res => return res
-    | none => return 0
+    let some val ← (← get).pubSub[key]?.mapM (fun b => b.send value)
+      | return none
+
+    let value ← Async.ofTask val
+    Async.ofExcept (some <$> value)
 
 end Database
 end MiniRedis

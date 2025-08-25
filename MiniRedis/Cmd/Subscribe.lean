@@ -6,9 +6,11 @@ Authors: Henrik Böving
 import MiniRedis.Frame
 import MiniRedis.Cmd.Basic
 import MiniRedis.Cmd.Unknown
+import MiniRedis.Cmd.Ping
 import MiniRedis.Util.Cancellable
 import MiniRedis.Connection
 import MiniRedis.Db
+import Std.Sync.StreamMap
 
 /-!
 This module implements parsing and interpretation of the Redis `SUBSCRIBE` and `UNSUBSCRIBE` commands.
@@ -16,7 +18,7 @@ Reference: https://redis.io/docs/latest/commands/subscribe and https://redis.io/
 -/
 
 namespace MiniRedis
-open Std.Internal.IO.Async
+open Std Internal.IO.Async
 
 /--
 Represents a command to subscribe to a list of channels. Used to start receiving input or messages
@@ -115,22 +117,25 @@ namespace Subscribe
 private inductive SubscribeCmds
   | subscribe (subscribe : Subscribe)
   | unsubscribe (unsubscribe : Unsubscribe)
+  | ping (ping : Ping)
   | unknown (unsubscribe : Unknown)
 
 private inductive SubscribeEvent
   | channel (name : String) (data : ByteArray)
   | command (frame : Except IO.Error (Option Frame))
 
-private def ChannelSet := Array String
+private def ChannelSet := StreamMap ByteArray
 
 -- Subscribes the current connection to a channel set.
-private def subscribe (set : ChannelSet) (channel : String) : ConnectionM ChannelSet := do
+private def subscribe (db : Database) (set : ChannelSet) (channel : String) : ConnectionM ChannelSet := do
   if set.contains channel then
     return set
 
   ConnectionM.writeFrame <| ToFrame.toFrame (Message.Subscription.mk channel (set.size + 1))
 
-  return set.push channel
+  let subscribed ← db.subscribe channel
+
+  return set.register channel subscribed
 
 -- Unsubscribes the current connection to a channel set.
 private def unsubscribe (set : ChannelSet) (channel : String) : ConnectionM ChannelSet := do
@@ -139,25 +144,22 @@ private def unsubscribe (set : ChannelSet) (channel : String) : ConnectionM Chan
 
   ConnectionM.writeFrame <| ToFrame.toFrame (Message.Unsubscription.mk channel (set.size + 1))
 
-  return set.filter (· != channel)
-
--- Selectable.one is of type Type 1
-private def selectorSet (db : Database) (set : ChannelSet) : ConnectionM (Array (Selector ByteArray × (ByteArray → IO (AsyncTask SubscribeEvent)))) := do
-  let channels ← set.mapM (fun x => (x, ·) <$> (liftM <| db.subscribe x))
-  let channels := channels.map (fun (name, c) => (c.receiveSelector, (fun x => (pure <| AsyncTask.pure <| SubscribeEvent.channel name x : IO _))))
-  return channels
+  return set.unregister channel
 
 -- Parses a frame
 private def parseFrame (frame : Frame) : ConnectionM SubscribeCmds := do
   let go : CmdParseM SubscribeCmds := do
     let commandName := (← CmdParseM.nextString).toLower
+
     let cmd ←
       match commandName with
       | "subscribe" => SubscribeCmds.subscribe <$> OfFrame.ofFrame
       | "unsubscribe" => SubscribeCmds.unsubscribe <$> OfFrame.ofFrame
-      | _ => pure (SubscribeCmds.unknown (Unknown.mk commandName))
+      | "ping" => SubscribeCmds.ping <$> OfFrame.ofFrame
+      | _ => return (SubscribeCmds.unknown (Unknown.mk commandName))
 
     CmdParseM.finish
+
     return cmd
 
   let result :=
@@ -172,25 +174,30 @@ private def parseFrame (frame : Frame) : ConnectionM SubscribeCmds := do
 Runs a `Subscribe` with a `Database`.
 -/
 def handle (sub : Subscribe) (db : Database) : ConnectionM Unit := do
-  let mut set ← sub.channels.foldlM subscribe #[]
+  let mut set ← sub.channels.foldlM (subscribe db) StreamMap.empty
 
   while true do
-    let channelSelector := (← selectorSet db set) |>.map (Function.uncurry Selectable.case)
-    let commandSelector := Selectable.case (← cancellableSelector ConnectionM.readFrame) (pure ∘ pure ∘ SubscribeEvent.command)
+    let channelSelector := Selectable.case set.selector (pure ∘ AsyncTask.pure ∘ Function.uncurry SubscribeEvent.channel)
+    let commandSelector := Selectable.case (← cancellableSelector ConnectionM.readFrame2) (pure ∘ pure ∘ SubscribeEvent.command)
 
-    let select ← Selectable.one (channelSelector.push commandSelector)
-    let result ← await select
+    let result ← Selectable.one #[channelSelector, commandSelector]
 
     match result with
     | .channel name data =>
       ConnectionM.writeFrame <| ToFrame.toFrame (Message.ChannelMessage.mk name data)
 
     | .command frame =>
-      let some frame ← IO.ofExcept frame | break
+      let some frame ← IO.ofExcept frame
+        -- Connection ended for some reason.
+        | break
+
       match ← parseFrame frame with
       | .unknown c => c.handle
-      | .subscribe s => do set ← s.channels.foldlM subscribe set
+      | .ping c => c.handle
+      | .subscribe s => do set ← s.channels.foldlM (subscribe db) set
       | .unsubscribe u => do set ← u.channels.foldlM unsubscribe set
+
+  set.close
 
 end Subscribe
 end MiniRedis

@@ -9,8 +9,9 @@ import Cli
 
 import MiniRedis.Util.Cancellable
 import MiniRedis.Util.Signal
-import MiniRedis.Util.Notify
 import Std.Internal.Async
+import Std.Sync.Notify
+
 open Std.Internal.IO.Async
 
 open MiniRedis

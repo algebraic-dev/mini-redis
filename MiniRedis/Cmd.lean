@@ -25,11 +25,12 @@ namespace Command
 def ofFrame (f : Frame) : Except String Command :=
   CmdParseM.run go f |>.mapError
     fun
-      | .endOfStream => "protocol error; reached end of stream while parsing"
+      | .endOfStream => "reached end of stream while parsing"
       | .other e => e
 where
   go : CmdParseM Command := do
     let commandName := (← CmdParseM.nextString).toLower
+
     let cmd ←
       match commandName with
       | "ping" => Command.ping <$> OfFrame.ofFrame

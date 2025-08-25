@@ -15,7 +15,7 @@ def sockAddrOfCli (p : Parsed) : IO Std.Net.SocketAddress := do
   let port := p.flag! "port" |>.as! Nat
   let some hostname := p.flag! "hostname" |>.as! String |> Std.Net.IPv4Addr.ofString
     | throw <| .userError "Invalid IPv4 as hostname"
-  return .v4 <| .mk hostname port
+  return .v4 <| .mk hostname port.toUInt16
 
 def runPingCmd (p : Parsed) : IO UInt32 := do
   let addr ← sockAddrOfCli p
@@ -93,7 +93,6 @@ def setCmd : Cmd := `[Cli|
   EXTENSIONS:
     defaultValues! #[("hostname", "127.0.0.1"), ("port", "8080")]
 ]
-
 
 def runClientCmd (p : Parsed) : IO UInt32 := do
   p.cmd.toFullCmd.printHelp

@@ -5,14 +5,14 @@ Authors: Sofia Rodrigues
 -/
 import Std.Internal.Async.Select
 import Std.Data.TreeMap
-import MiniRedis.Util.Notify
+import Std.Sync.Notify
 import Std
 
 namespace MiniRedis
 open Std.Internal.IO.Async
 
 private structure Signal.State where
-  notify : Notify
+  notify : Std.Notify
   signaled : Bool
 
 /--
@@ -27,7 +27,7 @@ namespace Signal
 Create a new signal with initial signaled state.
 -/
 def new (initialState : Bool := false) : BaseIO Signal := do
-  let notify ← Notify.new
+  let notify ← Std.Notify.new
   return { state := ← Std.Mutex.new { notify, signaled := initialState } }
 
 /--

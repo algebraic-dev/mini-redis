@@ -66,10 +66,10 @@ partial def readFrame (cancel : Signal) : ConnectionM (Option Frame) := do
 
     let recv ← (← get).client.recvSelector 4096
 
-    let buf? ← await (← Selectable.one #[
+    let buf? ← Selectable.one #[
       .case recv (fun x => pure <| pure (some x)),
       .case cancel.selector (fun _ => pure <| pure none)
-    ])
+    ]
 
     match buf? with
     | some (some buf) =>
@@ -84,13 +84,38 @@ partial def readFrame (cancel : Signal) : ConnectionM (Option Frame) := do
 
   return none
 
+partial def readFrame2 (cancel : IO.Promise Bool) : ConnectionM (Option Frame) := do
+  while true do
+    if let some frame ← parseFrame then
+      return some frame
+
+    let recv ← (← get).client.recvSelector 4096
+
+    let buf? ← Selectable.one #[
+      .case recv (fun x => pure <| pure (some x)),
+      .case (promiseSelector cancel) (fun _ => pure <| pure none)
+    ]
+
+    match buf? with
+    | some (some buf) =>
+      modify fun conn => { conn with buf := conn.buf ++ buf }
+    | some none =>
+      if (← get).buf.size == (← get).idx then do
+        return none
+      else do
+        throw <| .userError "Connection reset by peer"
+    | none => do
+        return none
+
+  return none
+
 @[inline]
 private def writeU8 (byte : UInt8) : ConnectionM Unit := do
-  await <| ← (← get).client.send (ByteArray.mk #[byte])
+  (← get).client.send (ByteArray.mk #[byte])
 
 @[inline]
 private def writeBytes (buf : ByteArray) : ConnectionM Unit := do
-  await <| ← (← get).client.send buf
+  (← get).client.send buf
 
 @[inline]
 private def writeDecimal (dec : Int64) : ConnectionM Unit := do
@@ -112,7 +137,6 @@ private def writeValue (f : Frame) : ConnectionM Unit := do
   | .null => writeBytes "$-1\r\n".toUTF8
   | .bulk val =>
     let len := val.size
-
     writeU8 '$'.toUInt8
     writeDecimal len.toInt64
     writeBytes val
